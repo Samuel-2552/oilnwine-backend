@@ -7,3 +7,4 @@ venv/
 
 # Ignore other unnecessary files
 *.log
+.env

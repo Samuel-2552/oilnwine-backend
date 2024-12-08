@@ -2,6 +2,10 @@ from flask import Blueprint, request, jsonify, current_app
 import jwt
 import datetime
 from flask_bcrypt import Bcrypt
+import re
+from flask_jwt_extended import (
+    JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity
+)
 
 bcrypt = Bcrypt()
 auth = Blueprint('auth', __name__)
@@ -14,37 +18,57 @@ USERS_DB = {
     }
 }
 
+# Email validation regex
+EMAIL_REGEX = r'^[\w\.-]+@[\w\.-]+\.\w+$'
+
 @auth.route('/login', methods=['POST'])
 def login():
     data = request.json
+    if not data:
+        return jsonify({"message": "Missing request data"}), 400
+    
     email = data.get('email')
     password = data.get('password')
+
+    if not email or not password:
+        return jsonify({"message": "Email and password are required"}), 400
+    
+    if not isinstance(email, str) or not isinstance(password, str):
+        return jsonify({"message": "Email and password must be strings"}), 400
+    
+    if not re.match(EMAIL_REGEX, email):
+        return jsonify({"message": "Invalid email format"}), 400
 
     user = USERS_DB.get(email)
     if user and bcrypt.check_password_hash(user['password'], password):
         # Generate JWT Token
-        token = jwt.encode({
-            'email': email,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-        }, current_app.config['SECRET_KEY'], algorithm='HS256')
+        token = create_access_token(identity={"email": email, "name": user["name"]})
+        refresh_token = create_refresh_token(identity={"email": email, "name": user["name"]})
 
         return jsonify({
             "message": "Login successful!",
             "token": token,
+            "refresh_token": refresh_token,
             "user": {"email": email, "name": user["name"]}
         }), 200
     return jsonify({"message": "Invalid email or password"}), 401
 
 @auth.route('/protected', methods=['GET'])
+@jwt_required()
 def protected():
-    token = request.headers.get('Authorization')
-    if not token:
-        return jsonify({"message": "Token is missing"}), 401
+    current_user = get_jwt_identity()
 
-    try:
-        decoded = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-        return jsonify({"message": "Access granted", "user": decoded})
-    except jwt.ExpiredSignatureError:
-        return jsonify({"message": "Token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"message": "Invalid token"}), 401
+    return jsonify({
+        "message": "Access granted",
+        "user": current_user
+    }), 200
+
+@auth.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)  # Requires a refresh token
+def refresh():
+    current_user = get_jwt_identity()
+    # Create a new access token
+    access_token = create_access_token(identity=current_user)
+    return jsonify({
+        "access_token": access_token
+    }), 200
