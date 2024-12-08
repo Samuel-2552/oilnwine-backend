@@ -2,8 +2,8 @@ from flask_cors import CORS
 from flask import Flask
 import os
 from flask_jwt_extended import JWTManager
-from .routes import main_routes
-from .config import Config
+
+from config import Config
 
 def create_app(config_name="development"):
     app = Flask(__name__)
@@ -15,9 +15,6 @@ def create_app(config_name="development"):
     app.config.from_object(Config)  # Load config
 
     # Initialize Flask-JWT-Extended
-    jwt.init_app(app)
-
-    # Initialize JWT
     JWTManager(app)
 
     # Register Blueprints
