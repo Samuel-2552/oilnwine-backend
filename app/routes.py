@@ -42,12 +42,12 @@ def login():
     user = USERS_DB.get(email)
     if user and bcrypt.check_password_hash(user['password'], password):
         # Generate JWT Token
-        token = create_access_token(identity={"email": email, "name": user["name"]})
+        access_token = create_access_token(identity={"email": email, "name": user["name"]})
         refresh_token = create_refresh_token(identity={"email": email, "name": user["name"]})
 
         return jsonify({
             "message": "Login successful!",
-            "token": token,
+            "access_token": access_token,
             "refresh_token": refresh_token,
             "user": {"email": email, "name": user["name"]}
         }), 200
